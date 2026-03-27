@@ -1,67 +1,99 @@
 package com.mekill404.restaurant_api.controller;
 
-import com.mekill404.restaurant_api.entity.IngredientEntity;
-import com.mekill404.restaurant_api.service.IngredientService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.sql.Timestamp;
+
+import com.mekill404.restaurant_api.dto.ErrorResponse;
+import com.mekill404.restaurant_api.dto.StockResponse;
+import com.mekill404.restaurant_api.model.Ingredient;
+import com.mekill404.restaurant_api.model.enums.Unit;
+import com.mekill404.restaurant_api.service.IngredientService;
+import com.mekill404.restaurant_api.service.StockMovementService;
+
+import java.sql.SQLException;
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/ingredients")
+@RequiredArgsConstructor
 public class IngredientController {
 
     private final IngredientService ingredientService;
-
-    @Autowired
-    public IngredientController(IngredientService ingredientService) {
-        this.ingredientService = ingredientService;
-    }
+    private final StockMovementService stockMovementService;
 
     @GetMapping
-    public List<IngredientEntity> getAllIngredients() {
-        return ingredientService.getAllIngredients();
+    public ResponseEntity<?> getAllIngredients() {
+        try {
+            List<Ingredient> ingredients = ingredientService.getAllIngredients();
+            return ResponseEntity.ok(ingredients);
+        } catch (SQLException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Database error: " + e.getMessage()));
+        }
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getIngredientById(@PathVariable int id) {
-        IngredientEntity ingredient = ingredientService.getIngredientById(id);
-        if (ingredient == null) {
+        try {
+            Ingredient ingredient = ingredientService.getIngredientById(id);
+            return ResponseEntity.ok(ingredient);
+
+        } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Ingredient.id=" + id + " is not found");
+                    .body(new ErrorResponse("Ingredient.id=" + id + " is not found"));
+        } catch (SQLException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Database error: " + e.getMessage()));
         }
-        return ResponseEntity.ok(ingredient);
     }
 
     @GetMapping("/{id}/stock")
-    public ResponseEntity<?> getStock(
+    public ResponseEntity<?> getStockValue(
             @PathVariable int id,
-            @RequestParam String at,
-            @RequestParam String unit) {
+            @RequestParam(required = false) String at,
+            @RequestParam(required = false) String unit) {
 
         if (at == null || unit == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("Either mandatory query parameter `at` or `unit` is not provided.");
+                    .body(new ErrorResponse("Either mandatory query parameter `at` or `unit` is not provided."));
         }
 
         try {
-            Instant instant = Instant.parse(at);
-            Timestamp timestamp = Timestamp.from(instant);
-            double stockValue = ingredientService.getStockValue(id, unit, timestamp);
-            return ResponseEntity.ok(Map.of("unit", unit, "value", stockValue));
-        } catch (DateTimeParseException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("Invalid date format for `at`. Expected ISO-8601 (e.g., 2024-01-06T12:00:00Z)");
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("Database error: " + e.getMessage());
+            try {
+                Unit.valueOf(unit.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ErrorResponse("Invalid unit. Allowed values: PCS, KG, L"));
+            }
+
+            Ingredient ingredient = ingredientService.getIngredientById(id);
+
+            Instant instant;
+            try {
+                instant = Instant.parse(at);
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ErrorResponse("Invalid date format. Use ISO-8601 format (e.g., 2024-01-06T12:00:00Z)"));
+            }
+
+            double stockValue = stockMovementService.getStockValueAt(id, instant);
+
+            StockResponse response = new StockResponse(unit.toUpperCase(), stockValue);
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("not found"))
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ErrorResponse("Ingredient.id=" + id + " is not found"));
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse(e.getMessage()));
+        } catch (SQLException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Database error: " + e.getMessage()));
         }
     }
 }

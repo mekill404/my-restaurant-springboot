@@ -1,64 +1,258 @@
 package com.mekill404.restaurant_api.repository;
 
-import com.mekill404.restaurant_api.entity.IngredientEntity;
-import com.mekill404.restaurant_api.entity.enums.CategoryEnum;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.stereotype.Repository;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.util.List;
-
-@Repository
-public class IngredientRepository {
-
-    private final JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    public IngredientRepository(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-    }
-
-    public List<IngredientEntity> findAll() {
-        String sql = "SELECT id, name, price, category FROM ingredient ORDER BY id";
-        return jdbcTemplate.query(sql, new IngredientRowMapper());
-    }
-
-    public IngredientEntity findById(int id) {
-        String sql = "SELECT id, name, price, category FROM ingredient WHERE id = ?";
-        List<IngredientEntity> results = jdbcTemplate.query(sql, new IngredientRowMapper(), id);
-        return results.isEmpty() ? null : results.get(0);
-    }
+import lombok.RequiredArgsConstructor;
 
 
-    public double getStockValueAt(int ingredientId, String unit, Timestamp at) {
-        if (findById(ingredientId) == null) {
-            throw new IllegalArgumentException("Ingredient not found with id " + ingredientId);
+import javax.sql.DataSource;
+
+import com.mekill404.restaurant_api.model.Ingredient;
+import com.mekill404.restaurant_api.model.enums.Category;
+
+import java.math.BigDecimal;
+import java.sql.*;
+import java.util.*;
+
+@org.springframework.stereotype.Repository
+@RequiredArgsConstructor
+public class IngredientRepository implements Repository<Ingredient, Integer> {
+    private final DataSource dataSource;
+
+    @Override
+    public Ingredient save(Ingredient ingredient) throws SQLException {
+        if (ingredient.getId() == 0) {
+            return insert(ingredient);
+        } else {
+            return update(ingredient);
         }
-        String sql = """
-            SELECT COALESCE(SUM(
-                CASE WHEN type = 'IN' THEN quantity ELSE -quantity END
-            ), 0) AS net
-            FROM stock_movement
-            WHERE id_ingredient = ?
-              AND unit = CAST(? AS unit_enum)
-              AND creation_datetime <= ?
-        """;
-        Double result = jdbcTemplate.queryForObject(sql, Double.class, ingredientId, unit, at);
-        return result != null ? result : 0.0;
     }
 
-    private static class IngredientRowMapper implements RowMapper<IngredientEntity> {
-        @Override
-        public IngredientEntity mapRow(ResultSet rs, int rowNum) throws SQLException {
-            return new IngredientEntity(
+    private Ingredient insert(Ingredient ingredient) throws SQLException {
+        String sql = "INSERT INTO ingredient (name, price, category, initial_stock) VALUES (?, ?, ?, ?) RETURNING id";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, ingredient.getName());
+            pstmt.setDouble(2, ingredient.getPrice());
+            pstmt.setString(3, ingredient.getCategory().name());
+            pstmt.setBigDecimal(4, BigDecimal.ZERO);
+
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                ingredient.setId(rs.getInt("id"));
+            }
+        }
+        return ingredient;
+    }
+
+    private Ingredient update(Ingredient ingredient) throws SQLException {
+        String sql = "UPDATE ingredient SET name = ?, price = ?, category = ? WHERE id = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, ingredient.getName());
+            pstmt.setDouble(2, ingredient.getPrice());
+            pstmt.setString(3, ingredient.getCategory().name());
+            pstmt.setInt(4, ingredient.getId());
+
+            pstmt.executeUpdate();
+        }
+        return ingredient;
+    }
+
+    @Override
+    public Optional<Ingredient> findById(Integer id) throws SQLException {
+        String sql = "SELECT id, name, price, category, initial_stock FROM ingredient WHERE id = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, id);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return Optional.of(mapIngredient(rs));
+            }
+        }
+        return Optional.empty();
+    }
+
+    public Optional<Ingredient> findByName(String name) throws SQLException {
+        String sql = "SELECT id, name, price, category, initial_stock FROM ingredient WHERE name = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, name);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return Optional.of(mapIngredient(rs));
+            }
+        }
+        return Optional.empty();
+    }
+
+    public List<Ingredient> findByNameContaining(String namePattern) throws SQLException {
+        List<Ingredient> ingredients = new ArrayList<>();
+        String sql = "SELECT id, name, price, category, initial_stock FROM ingredient WHERE name ILIKE ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, "%" + namePattern + "%");
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                ingredients.add(mapIngredient(rs));
+            }
+        }
+        return ingredients;
+    }
+
+    public List<Ingredient> findByCategory(Category category) throws SQLException {
+        List<Ingredient> ingredients = new ArrayList<>();
+        String sql = "SELECT id, name, price, category, initial_stock FROM ingredient WHERE category = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, category.name());
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                ingredients.add(mapIngredient(rs));
+            }
+        }
+        return ingredients;
+    }
+
+    public List<Ingredient> findByCriteria(String ingredientName, Category category, String dishName, int page, int size) throws SQLException {
+        List<Ingredient> ingredients = new ArrayList<>();
+        StringBuilder sql = new StringBuilder("""
+                    SELECT DISTINCT i.id, i.name, i.price, i.category, i.initial_stock
+                    FROM ingredient i
+                    LEFT JOIN dish_ingredient di ON i.id = di.id_ingredient
+                    LEFT JOIN dish d ON di.id_dish = d.id
+                    WHERE 1=1
+                """);
+
+        List<Object> params = new ArrayList<>();
+
+        if (ingredientName != null && !ingredientName.trim().isEmpty()) {
+            sql.append(" AND i.name ILIKE ?");
+            params.add("%" + ingredientName + "%");
+        }
+
+        if (category != null) {
+            sql.append(" AND i.category = ?");
+            params.add(category.name());
+        }
+
+        if (dishName != null && !dishName.trim().isEmpty()) {
+            sql.append(" AND d.name ILIKE ?");
+            params.add("%" + dishName + "%");
+        }
+
+        sql.append(" ORDER BY i.id LIMIT ? OFFSET ?");
+        params.add(size);
+        params.add((page - 1) * size);
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql.toString())) {
+
+            for (int i = 0; i < params.size(); i++) {
+                pstmt.setObject(i + 1, params.get(i));
+            }
+
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                ingredients.add(mapIngredient(rs));
+            }
+        }
+        return ingredients;
+    }
+
+    @Override
+    public List<Ingredient> findAll() throws SQLException {
+        List<Ingredient> ingredients = new ArrayList<>();
+        String sql = "SELECT id, name, price, category, initial_stock FROM ingredient ORDER BY id";
+
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                ingredients.add(mapIngredient(rs));
+            }
+        }
+        return ingredients;
+    }
+
+    public List<Ingredient> findAll(int page, int size) throws SQLException {
+        List<Ingredient> ingredients = new ArrayList<>();
+        String sql = "SELECT id, name, price, category, initial_stock FROM ingredient ORDER BY id LIMIT ? OFFSET ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, size);
+            pstmt.setInt(2, (page - 1) * size);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                ingredients.add(mapIngredient(rs));
+            }
+        }
+        return ingredients;
+    }
+
+    @Override
+    public void deleteById(Integer id) throws SQLException {
+        String sql = "DELETE FROM ingredient WHERE id = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, id);
+            pstmt.executeUpdate();
+        }
+    }
+
+    @Override
+    public boolean existsById(Integer id) throws SQLException {
+        String sql = "SELECT 1 FROM ingredient WHERE id = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, id);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next();
+        }
+    }
+
+    public int count() throws SQLException {
+        String sql = "SELECT COUNT(*) FROM ingredient";
+
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        }
+        return 0;
+    }
+
+    private Ingredient mapIngredient(ResultSet rs) throws SQLException {
+        return new Ingredient(
                 rs.getInt("id"),
                 rs.getString("name"),
                 rs.getDouble("price"),
-                CategoryEnum.valueOf(rs.getString("category"))
-            );
-        }
+                Category.valueOf(rs.getString("category"))
+        );
     }
 }

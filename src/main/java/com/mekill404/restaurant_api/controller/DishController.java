@@ -1,48 +1,61 @@
 package com.mekill404.restaurant_api.controller;
 
-import com.mekill404.restaurant_api.dto.DishIngredientUpdateDto;
-import com.mekill404.restaurant_api.entity.DishEntity;
-import com.mekill404.restaurant_api.service.DishService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import com.mekill404.restaurant_api.dto.ErrorResponse;
+import com.mekill404.restaurant_api.model.Dish;
+import com.mekill404.restaurant_api.model.Ingredient;
+import com.mekill404.restaurant_api.service.DishService;
+
+import java.sql.SQLException;
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/dishes")
+@RequiredArgsConstructor
 public class DishController {
 
     private final DishService dishService;
-
-    @Autowired
-    public DishController(DishService dishService) {
-        this.dishService = dishService;
-    }
-
     @GetMapping
-    public List<DishEntity> getAllDishes() {
-        return dishService.getAllDishes();
+    public ResponseEntity<?> getAllDishes() {
+        try {
+            List<Dish> dishes = dishService.getAllDishes();
+            return ResponseEntity.ok(dishes);
+        } catch (SQLException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Database error: " + e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}/ingredients")
     public ResponseEntity<?> updateDishIngredients(
             @PathVariable int id,
-            @RequestBody List<DishIngredientUpdateDto> newIngredients) {
+            @RequestBody(required = false) List<Ingredient> ingredients) {
 
-        if (newIngredients == null) {
+        if (ingredients == null)
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("Request body must contain a list of ingredients (can be empty)");
-        }
+                    .body(new ErrorResponse("Request body with ingredients list is required."));
 
         try {
-            dishService.updateIngredients(id, newIngredients);
-            return ResponseEntity.ok("Ingredients updated successfully");
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (Exception e) {
+            Dish updatedDish = dishService.updateDishIngredients(id, ingredients);
+
+            return ResponseEntity.ok(updatedDish);
+
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ErrorResponse("Dish.id=" + id + " is not found"));
+            }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Database error: " + e.getMessage());
+                    .body(new ErrorResponse(e.getMessage()));
+        } catch (SQLException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Database error: " + e.getMessage()));
         }
     }
 }
