@@ -1,5 +1,7 @@
 package com.mekill404.restaurant_api.entity;
 
+import java.util.List;
+
 import com.mekill404.restaurant_api.entity.enums.CategoryEnum;
 
 import lombok.AllArgsConstructor;
@@ -12,5 +14,5 @@ public class IngredientEntity {
     private String name;
     private Double price;
     private CategoryEnum category;
-    private DishEntity dish;
+    private List<StockMovement> stockMovements;
 }

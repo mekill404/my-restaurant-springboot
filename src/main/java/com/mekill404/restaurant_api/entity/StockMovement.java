@@ -3,6 +3,7 @@ package com.mekill404.restaurant_api.entity;
 import java.time.Instant;
 
 import com.mekill404.restaurant_api.entity.enums.MovementTypeEnum;
+import com.mekill404.restaurant_api.entity.enums.UnitEnum;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -11,7 +12,9 @@ import lombok.Data;
 @AllArgsConstructor
 public class StockMovement {
     private Integer id;
+    private IngredientEntity ingredient;
     private MovementTypeEnum type;
-    private StockValue value;
+    private Double quantity;
+    private UnitEnum unit;
     private Instant creationDateTime;
 }

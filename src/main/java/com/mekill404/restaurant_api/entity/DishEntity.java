@@ -14,5 +14,5 @@ public class DishEntity {
     private String name;
     private DishTypeEnum dishType;
     private Double price;
-    private  List<IngredientEntity> dishIngredients;
+    private  List<DishIngredientEntity> dishIngredients;
 }

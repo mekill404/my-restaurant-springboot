@@ -10,7 +10,7 @@ import lombok.Data;
 public class DishIngredientEntity {
     private Integer id;
     private DishEntity dish;
-    private IngredientEntity ingredients;
+    private IngredientEntity ingredient;
     private Double quantity;
     private UnitEnum unit;
 }
