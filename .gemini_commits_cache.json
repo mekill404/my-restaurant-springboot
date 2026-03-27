@@ -1,0 +1,6 @@
+{
+  ".gitattributes:added:0835e1994fd11e177494982651a29379": "\u001b[0;34mℹ️ Analyse de .gitattributes par Gemini...\u001b[0m\n\u001b[1;33m⚠️ Gemini indisponible — utilisation du fallback local\u001b[0m\nrefactor(): update \n\nAutomated fallback commit.\n",
+  ".gitignore:added:cf5b96c35bbd32e86cf86021e575f3d1": "\u001b[0;34mℹ️ Analyse de .gitignore par Gemini...\u001b[0m\n\u001b[1;33m⚠️ Gemini indisponible — utilisation du fallback local\u001b[0m\nfeat(): add  feature\n\nAutomated fallback commit.\n",
+  ".mvn/:added:": "\u001b[0;34mℹ️ Analyse de .mvn/ par Gemini...\u001b[0m\nrefactor(): update \n\nAutomated fallback commit.\n",
+  "mvnw:added:ab50dd89da7da2346b28003352eeeeeb": "\u001b[0;34mℹ️ Analyse de mvnw par Gemini...\u001b[0m\n\u001b[1;33m⚠️ Gemini indisponible — utilisation du fallback local\u001b[0m\nrefactor(mvnw): update mvnw\n\nAutomated fallback commit.\n"
+}
