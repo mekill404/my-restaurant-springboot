@@ -1,5 +1,6 @@
 package com.mekill404.restaurant_api.repository;
 
+import com.mekill404.restaurant_api.dto.DishIngredientUpdateDto;
 import com.mekill404.restaurant_api.entity.*;
 import com.mekill404.restaurant_api.entity.enums.CategoryEnum;
 import com.mekill404.restaurant_api.entity.enums.DishTypeEnum;
@@ -9,10 +10,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Repository
 public class DishRepository {
@@ -52,19 +53,18 @@ public class DishRepository {
             JOIN ingredient i ON di.id_ingredient = i.id
             WHERE di.id_dish = ?
         """;
-        return jdbcTemplate.query(sql, new DishIngredientRowMapper(), dishId);
+        return jdbcTemplate.query(sql, new DishIngredientRowMapper(dishId), dishId);
     }
 
     @Transactional
-    public void updateIngredients(int dishId, List<IngredientEntity> newIngredients) {
+    public void updateIngredients(int dishId, List<DishIngredientUpdateDto> newIngredients) {
         jdbcTemplate.update("DELETE FROM dish_ingredient WHERE id_dish = ?", dishId);
-
-        for (IngredientEntity ing : newIngredients) {
-            // On utilise des valeurs par défaut pour quantity et unit (à adapter)
-            jdbcTemplate.update(
-                "INSERT INTO dish_ingredient (id_dish, id_ingredient, quantity, unit) VALUES (?, ?, ?, ?)",
-                dishId, ing.getId(), 1.0, "PCS"
-            );
+        List<DishIngredientUpdateDto> validIngredients = newIngredients.stream()
+            .filter(dto -> ingredientRepository.findById(dto.getIngredientId()) != null)
+            .collect(Collectors.toList());
+        String sql = "INSERT INTO dish_ingredient (id_dish, id_ingredient, quantity, unit) VALUES (?, ?, ?, CAST(? AS unit_enum))";
+        for (DishIngredientUpdateDto dto : validIngredients) {
+            jdbcTemplate.update(sql, dishId, dto.getIngredientId(), dto.getQuantity(), dto.getUnit().name());
         }
     }
 
@@ -82,18 +82,23 @@ public class DishRepository {
     }
 
     private static class DishIngredientRowMapper implements RowMapper<DishIngredientEntity> {
+        private final int dishId;
+
+        public DishIngredientRowMapper(int dishId) {
+            this.dishId = dishId;
+        }
+
         @Override
         public DishIngredientEntity mapRow(ResultSet rs, int rowNum) throws SQLException {
             IngredientEntity ingredient = new IngredientEntity(
                 rs.getInt("ing_id"),
                 rs.getString("name"),
                 rs.getDouble("price"),
-                CategoryEnum.valueOf(rs.getString("category")),
-                null
+                CategoryEnum.valueOf(rs.getString("category"))
             );
             return new DishIngredientEntity(
                 rs.getInt("id"),
-                null, 
+                null,
                 ingredient,
                 rs.getDouble("quantity"),
                 UnitEnum.valueOf(rs.getString("unit"))
