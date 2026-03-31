@@ -1,4 +1,4 @@
-CREATE ROLE product_manager_user WITH LOGIN PASSWORD 'ProducT8_8ManageR8_8User';
+CREATE ROLE product_manager_user WITH LOGIN PASSWORD '';
 
 CREATE DATABASE product_management_db 
     WITH 
