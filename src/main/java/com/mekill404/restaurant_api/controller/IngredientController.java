@@ -68,9 +68,6 @@ public class IngredientController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(new ErrorResponse("Invalid unit. Allowed values: PCS, KG, L"));
             }
-
-            Ingredient ingredient = ingredientService.getIngredientById(id);
-
             Instant instant;
             try {
                 instant = Instant.parse(at);

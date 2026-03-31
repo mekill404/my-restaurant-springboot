@@ -15,7 +15,6 @@ import java.util.*;
 @RequiredArgsConstructor
 public class DishIngredientRepository {
     private final DataSource dataSource;
-    private final IngredientRepository ingredientRepository;
 
     public void saveAssociation(int dishId, int ingredientId, double quantity, Unit unit) throws SQLException {
         String sql = """
