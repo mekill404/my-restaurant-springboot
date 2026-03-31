@@ -6,10 +6,10 @@ import javax.sql.DataSource;
 
 import com.mekill404.restaurant_api.model.Ingredient;
 import com.mekill404.restaurant_api.model.enums.Unit;
+import com.mekill404.restaurant_api.model.enums.Category;
 
 import java.sql.*;
 import java.util.*;
-import java.util.Locale.Category;
 
 @org.springframework.stereotype.Repository
 @RequiredArgsConstructor
@@ -43,10 +43,8 @@ public class DishIngredientRepository {
             conn = dataSource.getConnection();
             conn.setAutoCommit(false);
 
-            // Supprimer les anciennes associations
             deleteByDishId(dishId, conn);
 
-            // Ajouter les nouvelles associations (avec quantité et unité par défaut)
             String insertSql = "INSERT INTO dish_ingredient (id_dish, id_ingredient, required_quantity, unit) VALUES (?, ?, ?, ?)";
             try (PreparedStatement pstmt = conn.prepareStatement(insertSql)) {
                 for (Ingredient ingredient : ingredients) {
@@ -145,7 +143,7 @@ public class DishIngredientRepository {
                 rs.getInt("id"),
                 rs.getString("name"),
                 rs.getDouble("price"),
-               Category.valueOf(rs.getString("category")
+               Category.valueOf(rs.getString("category"))
         );
     }
 }

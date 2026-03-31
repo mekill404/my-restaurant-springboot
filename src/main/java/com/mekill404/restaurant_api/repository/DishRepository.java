@@ -2,7 +2,6 @@ package com.mekill404.restaurant_api.repository;
 
 import lombok.RequiredArgsConstructor;
 
-
 import javax.sql.DataSource;
 
 import com.mekill404.restaurant_api.model.Dish;
@@ -31,7 +30,7 @@ public class DishRepository implements Repository<Dish, Integer> {
         String sql = "INSERT INTO dish (name, dish_type, selling_price) VALUES (?, ?, ?) RETURNING id";
 
         try (Connection conn = dataSource.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, dish.getName());
             pstmt.setString(2, dish.getDishType().name());
@@ -53,7 +52,7 @@ public class DishRepository implements Repository<Dish, Integer> {
         String sql = "UPDATE dish SET name = ?, dish_type = ?, selling_price = ? WHERE id = ?";
 
         try (Connection conn = dataSource.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, dish.getName());
             pstmt.setString(2, dish.getDishType().name());
@@ -74,7 +73,7 @@ public class DishRepository implements Repository<Dish, Integer> {
         String sql = "SELECT id, name, dish_type, selling_price FROM dish WHERE id = ?";
 
         try (Connection conn = dataSource.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, id);
             ResultSet rs = pstmt.executeQuery();
@@ -98,7 +97,7 @@ public class DishRepository implements Repository<Dish, Integer> {
 
     private List<Dish> getDishes(String namePattern, List<Dish> dishes, String sql) throws SQLException {
         try (Connection conn = dataSource.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, "%" + namePattern + "%");
             ResultSet rs = pstmt.executeQuery();
@@ -115,13 +114,13 @@ public class DishRepository implements Repository<Dish, Integer> {
     public List<Dish> findByIngredientName(String ingredientName) throws SQLException {
         List<Dish> dishes = new ArrayList<>();
         String sql = """
-            SELECT DISTINCT d.id, d.name, d.dish_type, d.selling_price
-            FROM dish d
-            JOIN dish_ingredient di ON d.id = di.id_dish
-            JOIN ingredient i ON di.id_ingredient = i.id
-            WHERE i.name ILIKE ?
-            ORDER BY d.id
-        """;
+                    SELECT DISTINCT d.id, d.name, d.dish_type, d.selling_price
+                    FROM dish d
+                    JOIN dish_ingredient di ON d.id = di.id_dish
+                    JOIN ingredient i ON di.id_ingredient = i.id
+                    WHERE i.name ILIKE ?
+                    ORDER BY d.id
+                """;
 
         return getDishes(ingredientName, dishes, sql);
     }
@@ -132,8 +131,8 @@ public class DishRepository implements Repository<Dish, Integer> {
         String sql = "SELECT id, name, dish_type, selling_price FROM dish ORDER BY id";
 
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
                 Dish dish = mapDish(rs);
@@ -149,7 +148,7 @@ public class DishRepository implements Repository<Dish, Integer> {
         String sql = "SELECT id, name, dish_type, selling_price FROM dish ORDER BY id LIMIT ? OFFSET ?";
 
         try (Connection conn = dataSource.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, size);
             pstmt.setInt(2, (page - 1) * size);
@@ -173,7 +172,7 @@ public class DishRepository implements Repository<Dish, Integer> {
         String sql = "DELETE FROM dish WHERE id = ?";
 
         try (Connection conn = dataSource.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, id);
             pstmt.executeUpdate();
@@ -185,7 +184,7 @@ public class DishRepository implements Repository<Dish, Integer> {
         String sql = "SELECT 1 FROM dish WHERE id = ?";
 
         try (Connection conn = dataSource.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, id);
             ResultSet rs = pstmt.executeQuery();
@@ -197,8 +196,8 @@ public class DishRepository implements Repository<Dish, Integer> {
         String sql = "SELECT COUNT(*) FROM dish";
 
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
 
             if (rs.next()) {
                 return rs.getInt(1);
@@ -220,7 +219,53 @@ public class DishRepository implements Repository<Dish, Integer> {
                 rs.getString("name"),
                 dishType,
                 sellingPrice,
-                new ArrayList<>()
-        );
+                new ArrayList<>());
+    }
+
+    public List<Dish> findByFilters(String name, Double priceUnder, Double priceOver) throws SQLException {
+        List<Dish> dishes = new ArrayList<>();
+        StringBuilder sql = new StringBuilder("SELECT id, name, dish_type, selling_price FROM dish WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+
+        if (name != null && !name.trim().isEmpty()) {
+            sql.append(" AND name ILIKE ?");
+            params.add("%" + name + "%");
+        }
+        if (priceUnder != null) {
+            sql.append(" AND selling_price < ?");
+            params.add(priceUnder);
+        }
+        if (priceOver != null) {
+            sql.append(" AND selling_price > ?");
+            params.add(priceOver);
+        }
+
+        sql.append(" ORDER BY id");
+
+        try (Connection conn = dataSource.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql.toString())) {
+
+            for (int i = 0; i < params.size(); i++) {
+                pstmt.setObject(i + 1, params.get(i));
+            }
+
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                Dish dish = mapDish(rs);
+                dish.setIngredients(dishIngredientRepository.findIngredientsByDishId(dish.getId()));
+                dishes.add(dish);
+            }
+        }
+        return dishes;
+    }
+
+    public boolean existsByName(String name) throws SQLException {
+        String sql = "SELECT 1 FROM dish WHERE name = ?";
+        try (Connection conn = dataSource.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, name);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next();
+        }
     }
 }

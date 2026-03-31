@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mekill404.restaurant_api.dto.DishCreateRequestDto;
 import com.mekill404.restaurant_api.model.Dish;
 import com.mekill404.restaurant_api.model.Ingredient;
 import com.mekill404.restaurant_api.repository.DishIngredientRepository;
@@ -11,6 +12,7 @@ import com.mekill404.restaurant_api.repository.DishRepository;
 import com.mekill404.restaurant_api.repository.IngredientRepository;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -67,8 +69,10 @@ public class DishService {
     }
 
     public List<Dish> getDishesPaginated(int page, int size) throws SQLException {
-        if (page < 1) page = 1;
-        if (size < 1) size = 10;
+        if (page < 1)
+            page = 1;
+        if (size < 1)
+            size = 10;
         return dishRepository.findAll(page, size);
     }
 
@@ -129,5 +133,29 @@ public class DishService {
 
     public long countDishes() throws SQLException {
         return dishRepository.count();
+    }
+
+    @Transactional
+    public List<Dish> createDishes(List<DishCreateRequestDto> requests) throws SQLException {
+        for (DishCreateRequestDto req : requests) {
+            if (dishRepository.existsByName(req.getName())) {
+                throw new RuntimeException("Dish.name=" + req.getName() + " already exists");
+            }
+        }
+
+        List<Dish> created = new ArrayList<>();
+        for (DishCreateRequestDto req : requests) {
+            Dish dish = new Dish();
+            dish.setName(req.getName());
+            dish.setDishType(req.getDishType());
+            dish.setSellingPrice(req.getSellingPrice());
+            dish.setIngredients(new ArrayList<>());
+            created.add(dishRepository.save(dish));
+        }
+        return created;
+    }
+
+    public List<Dish> getDishesByFilters(String name, Double priceUnder, Double priceOver) throws SQLException {
+        return dishRepository.findByFilters(name, priceUnder, priceOver);
     }
 }
