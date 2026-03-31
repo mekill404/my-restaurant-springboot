@@ -1,18 +1,5 @@
-CREATE TYPE dish_type AS ENUM ('STARTER', 'MAIN', 'DESSERT');
-CREATE TYPE ingredient_category AS ENUM ('VEGETABLE', 'ANIMAL', 'MARINE', 'DAIRY', 'OTHER');
-
-CREATE TABLE category (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL
-);
-
-CREATE TABLE product (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    price NUMERIC(10, 2),
-    creation_datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    category_id INT REFERENCES category(id)
-);
+CREATE TYPE dish_type AS ENUM ('STARTER', 'MAIN_COURSE', 'DESSERT', 'OTHER');
+CREATE TYPE ingredient_category AS ENUM ('VEGETABLE', 'ANIMAL', 'MARINE', 'DAIRY', 'OTHER', 'MEAT');
 
 CREATE TABLE dish (
     id SERIAL PRIMARY KEY,
