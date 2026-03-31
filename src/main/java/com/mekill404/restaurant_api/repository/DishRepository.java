@@ -165,10 +165,8 @@ public class DishRepository implements Repository<Dish, Integer> {
 
     @Override
     public void deleteById(Integer id) throws SQLException {
-        // D'abord supprimer les associations dans dish_ingredient
         dishIngredientRepository.deleteByDishId(id);
 
-        // Ensuite supprimer le plat
         String sql = "DELETE FROM dish WHERE id = ?";
 
         try (Connection conn = dataSource.getConnection();

@@ -41,7 +41,6 @@ public class DishController {
             @RequestParam(required = false) Double priceOver) {
         try {
             List<Dish> dishes;
-            // Si au moins un filtre est fourni, utiliser la recherche filtrée
             if (name != null || priceUnder != null || priceOver != null) {
                 dishes = dishService.getDishesByFilters(name, priceUnder, priceOver);
             } else {
