@@ -6,10 +6,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.HashMap;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 
@@ -54,15 +53,14 @@ public class IngredientController {
             Instant instant = Instant.parse(at);
             Timestamp timestamp = Timestamp.from(instant);
             double stockValue = ingredientService.getStockValue(id, unit, timestamp);
-            Map<String, Object> response = new HashMap<>();
-            response.put("unit", unit);
-            response.put("value", stockValue);
-            return ResponseEntity.ok(response);
-        } catch (java.time.format.DateTimeParseException e) {
+            return ResponseEntity.ok(Map.of("unit", unit, "value", stockValue));
+        } catch (DateTimeParseException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body("Invalid date format for `at`. Expected ISO-8601 (e.g., 2024-01-06T12:00:00Z)");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body("Database error: " + e.getMessage());
         }
     }
