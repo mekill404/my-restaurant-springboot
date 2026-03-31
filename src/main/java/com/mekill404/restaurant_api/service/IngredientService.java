@@ -4,7 +4,6 @@ import com.mekill404.restaurant_api.entity.IngredientEntity;
 import com.mekill404.restaurant_api.repository.IngredientRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
 import java.sql.Timestamp;
 import java.util.List;
 
